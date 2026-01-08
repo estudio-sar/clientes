@@ -4,13 +4,18 @@
   "rows": [
     {
       "modelo": "DARIENZO",
-      "producto": "1",
+      "producto": "La Bruja",
       "url": "https://tusitio.com/docs/doc1.pdf",
       "botonTexto": "Abrir documento"
     },
     {
       "modelo": "TROILO",
-      "producto": "2",
+      "producto": "Tinta Roja, Malena",
+      "url": "https://tusitio.com/docs/doc2.pdf"
+    },
+    {
+      "modelo": "PUGLIESE",
+      "producto": "La Yumba",
       "url": "https://tusitio.com/docs/doc2.pdf"
     }
   ]
