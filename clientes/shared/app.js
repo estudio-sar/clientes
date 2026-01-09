@@ -1,4 +1,6 @@
-const DATA_URL = "./data.json";
+const params = new URLSearchParams(window.location.search);
+const DATA_URL = params.get("data") || "./data.json";
+
 let allRows = [];
 
 const norm = (s) => (s ?? "").toString().toLowerCase().trim();
@@ -20,55 +22,54 @@ function render(rows) {
   for (const r of rows) {
     const tr = document.createElement("tr");
 
-    const tdModelo = document.createElement("td");
-    tdModelo.textContent = r.modelo ?? "";
+    const tdModel = document.createElement("td");
+    tdModel.textContent = r.model ?? "";
+    tr.appendChild(tdModel);
 
-    const tdProducto = document.createElement("td");
-    tdProducto.textContent = r.producto ?? "";
+    const tdProduct = document.createElement("td");
+    tdProduct.textContent = r.product ?? "";
+    tr.appendChild(tdProduct);
 
-    const tdDocumento = document.createElement("td");
-    const a = document.createElement("a");
-    a.className = "btn";
-
-    // ✅ tu JSON: url + botonTexto (opcional)
-    a.textContent = r.botonTexto || "Ver documento";
-    a.href = r.url || "#";
-    a.target = "_blank";
-    a.rel = "noopener";
-
-    // opcional: si falta url, deshabilita visualmente
-    if (!r.url) {
-      a.removeAttribute("href");
-      a.style.pointerEvents = "none";
-      a.style.opacity = "0.5";
-      a.title = "Documento no disponible";
+    const tdDoc = document.createElement("td");
+    if (r.url) {
+      const a = document.createElement("a");
+      a.className = "btn";
+      a.href = r.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = r.label || "Abrir";
+      tdDoc.appendChild(a);
+    } else {
+      tdDoc.textContent = r.label ?? "";
     }
-
-    tdDocumento.appendChild(a);
-
-    tr.appendChild(tdModelo);
-    tr.appendChild(tdProducto);
-    tr.appendChild(tdDocumento);
+    tr.appendChild(tdDoc);
 
     tbody.appendChild(tr);
   }
 }
 
-
 function applyFilter() {
   const q = norm(document.getElementById("q").value);
   if (!q) return render(allRows);
 
-  const filtered = allRows.filter(r =>
-    norm(r.modelo).includes(q) || norm(r.producto).includes(q)
-  );
+  const filtered = allRows.filter((r) => {
+    return (
+      norm(r.model).includes(q) ||
+      norm(r.product).includes(q) ||
+      norm(r.label).includes(q)
+    );
+  });
 
   render(filtered);
 }
 
 async function load() {
   const res = await fetch(DATA_URL, { cache: "no-store" });
-  if (!res.ok) throw new Error("No se pudo cargar el JSON: " + res.status);
+  if (!res.ok) {
+    console.error(`No se pudo cargar ${DATA_URL} (${res.status})`);
+    render([]);
+    return;
+  }
 
   const data = await res.json();
 
@@ -84,23 +85,3 @@ async function load() {
 }
 
 document.addEventListener("DOMContentLoaded", load);
-
-
-// --- Shared partials (GitHub Pages) ---
-async function injectPartial(slotId, url) {
-  const slot = document.getElementById(slotId);
-  if (!slot) return;
-
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return; // si no existe el partial, no rompe nada
-    slot.innerHTML = await res.text();
-  } catch (e) {
-    // en caso de error (offline / file://), simplemente no inyecta
-  }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  const sharedBase = document.body?.dataset?.shared || "../shared";
-  injectPartial("footer-slot", `${sharedBase}/partials/footer.html`);
-});
