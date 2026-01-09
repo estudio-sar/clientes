@@ -37,7 +37,7 @@ function render(rows) {
       a.href = r.url;
       a.target = "_blank";
       a.rel = "noopener";
-      a.textContent = r.label || "Abrir";
+      a.textContent = r.label || "Ver documento";
       tdDoc.appendChild(a);
     } else {
       tdDoc.textContent = r.label ?? "";
