@@ -75,8 +75,8 @@ async function load() {
 
   document.title = data.title || "Documentos";
   document.getElementById("pageTitle").textContent = data.title || "Documentos";
-  document.getElementById("pageIntro").textContent =
-    data.intro || "Listado de documentos asociados a modelos y productos.";
+//document.getElementById("pageIntro").textContent =
+ //   data.intro || "Listado de documentos asociados a modelos y productos.";
 
   allRows = Array.isArray(data.rows) ? data.rows : [];
   render(allRows);
