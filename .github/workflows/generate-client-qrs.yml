@@ -1,0 +1,97 @@
+name: Generate client QRs
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_folders:
+        description: "Subcarpetas dentro de clientes/ (ej: acme o: acme,globex,initech)"
+        required: true
+        type: string
+      filename:
+        description: "Nombre del PNG a generar en cada carpeta"
+        required: false
+        default: "qr.png"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  qr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "qrcode[pil]"
+
+      - name: Generate QRs for clientes/<client>/
+        env:
+          CLIENT_FOLDERS: ${{ inputs.client_folders }}
+          FILENAME: ${{ inputs.filename }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import qrcode
+
+          owner = os.environ["OWNER"]
+          repo = os.environ["REPO"]
+          filename = os.environ["FILENAME"].strip() or "qr.png"
+
+          raw = os.environ["CLIENT_FOLDERS"].strip()
+          # Acepta: "acme, globex initech"
+          clients = [c for c in re.split(r"[,\s]+", raw) if c]
+
+          base = f"https://{owner}.github.io/{repo}"
+
+          errors = []
+          for client in clients:
+            client = client.strip().strip("/")
+
+            # Carpeta donde guardar: clientes/<client>/
+            folder_path = os.path.join("clientes", client)
+            if not os.path.isdir(folder_path):
+              errors.append(f"No existe: {folder_path}")
+              continue
+
+            url = f"{base}/clientes/{client}/"
+            out_path = os.path.join(folder_path, filename)
+
+            img = qrcode.make(url)
+            img.save(out_path)
+
+            print(f"OK  client={client}  url={url}  saved={out_path}")
+
+          if errors:
+            print("\nERRORES:")
+            for e in errors:
+              print(" -", e)
+            raise SystemExit(1)
+          PY
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Generate client QR(s): ${{ inputs.client_folders }}"
+          git push
