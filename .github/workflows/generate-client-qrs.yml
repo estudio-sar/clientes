@@ -12,6 +12,21 @@ on:
         required: false
         default: "qr.png"
         type: string
+      error_correction:
+        description: "Corrección de error: L (más simple), M, Q, H (más robusto)"
+        required: false
+        default: "L"
+        type: string
+      border:
+        description: "Borde (quiet zone) en módulos. Recomendado 4, para pequeño 2"
+        required: false
+        default: "2"
+        type: string
+      box_size:
+        description: "Tamaño del módulo en píxeles (más grande = QR más grande)"
+        required: false
+        default: "10"
+        type: string
 
 permissions:
   contents: write
@@ -41,27 +56,53 @@ jobs:
           FILENAME: ${{ inputs.filename }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
+          ERROR_CORRECTION: ${{ inputs.error_correction }}
+          BORDER: ${{ inputs.border }}
+          BOX_SIZE: ${{ inputs.box_size }}
         run: |
           python - <<'PY'
           import os
           import re
           import qrcode
+          from qrcode.constants import ERROR_CORRECT_L, ERROR_CORRECT_M, ERROR_CORRECT_Q, ERROR_CORRECT_H
 
           owner = os.environ["OWNER"]
           repo = os.environ["REPO"]
           filename = os.environ["FILENAME"].strip() or "qr.png"
 
           raw = os.environ["CLIENT_FOLDERS"].strip()
-          # Acepta: "acme, globex initech"
           clients = [c for c in re.split(r"[,\s]+", raw) if c]
 
           base = f"https://{owner}.github.io/{repo}"
+
+          # Params para QR "simple"
+          ec_raw = (os.environ.get("ERROR_CORRECTION") or "L").strip().upper()
+          ec_map = {
+            "L": ERROR_CORRECT_L,  # ~7% (más simple)
+            "M": ERROR_CORRECT_M,  # ~15%
+            "Q": ERROR_CORRECT_Q,  # ~25%
+            "H": ERROR_CORRECT_H,  # ~30% (más denso)
+          }
+          error_correction = ec_map.get(ec_raw, ERROR_CORRECT_L)
+
+          try:
+            border = int((os.environ.get("BORDER") or "2").strip())
+          except ValueError:
+            border = 2
+
+          try:
+            box_size = int((os.environ.get("BOX_SIZE") or "10").strip())
+          except ValueError:
+            box_size = 10
+
+          # límites razonables
+          border = max(0, min(border, 10))
+          box_size = max(1, min(box_size, 50))
 
           errors = []
           for client in clients:
             client = client.strip().strip("/")
 
-            # Carpeta donde guardar: clientes/<client>/
             folder_path = os.path.join("clientes", client)
             if not os.path.isdir(folder_path):
               errors.append(f"No existe: {folder_path}")
@@ -70,10 +111,19 @@ jobs:
             url = f"{base}/clientes/{client}/"
             out_path = os.path.join(folder_path, filename)
 
-            img = qrcode.make(url)
+            qr = qrcode.QRCode(
+              version=None,               # auto
+              error_correction=error_correction,
+              box_size=box_size,
+              border=border,
+            )
+            qr.add_data(url)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color="black", back_color="white")
             img.save(out_path)
 
-            print(f"OK  client={client}  url={url}  saved={out_path}")
+            print(f"OK  client={client}  url={url}  saved={out_path}  ec={ec_raw} border={border} box_size={box_size}")
 
           if errors:
             print("\nERRORES:")
