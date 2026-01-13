@@ -25,7 +25,7 @@ on:
       box_size:
         description: "Tamaño del módulo en píxeles (más grande = QR más grande)"
         required: false
-        default: "10"
+        default: "12"
         type: string
 
 permissions:
