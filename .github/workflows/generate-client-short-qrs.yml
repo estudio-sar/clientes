@@ -1,0 +1,148 @@
+name: Generate client QRs
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_folders:
+        description: "Subcarpetas dentro de clientes/ (ej: acme o: acme,globex,initech)"
+        required: true
+        type: string
+      filename:
+        description: "Nombre del PNG a generar en cada carpeta"
+        required: false
+        default: "qr.png"
+        type: string
+      error_correction:
+        description: "Corrección de error: L (más simple), M, Q, H (más robusto)"
+        required: false
+        default: "L"
+        type: string
+      border:
+        description: "Borde (quiet zone) en módulos. Recomendado 4, para pequeño 2"
+        required: false
+        default: "2"
+        type: string
+      box_size:
+        description: "Tamaño del módulo en píxeles (más grande = QR más grande)"
+        required: false
+        default: "12"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  qr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "qrcode[pil]"
+
+      - name: Generate QRs for clientes/<client>/
+        env:
+          CLIENT_FOLDERS: ${{ inputs.client_folders }}
+          FILENAME: ${{ inputs.filename }}
+          ERROR_CORRECTION: ${{ inputs.error_correction }}
+          BORDER: ${{ inputs.border }}
+          BOX_SIZE: ${{ inputs.box_size }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from urllib.parse import quote
+
+          import qrcode
+          from qrcode.constants import ERROR_CORRECT_L, ERROR_CORRECT_M, ERROR_CORRECT_Q, ERROR_CORRECT_H
+
+          filename = os.environ["FILENAME"].strip() or "qr.png"
+
+          raw = os.environ["CLIENT_FOLDERS"].strip()
+          clients = [c for c in re.split(r"[,\s]+", raw) if c]
+
+          # URL corta fija (tu "redirector")
+          base = "https://qrsar.github.io/q"
+
+          # Params para QR "simple"
+          ec_raw = (os.environ.get("ERROR_CORRECTION") or "L").strip().upper()
+          ec_map = {
+            "L": ERROR_CORRECT_L,  # ~7% (más simple)
+            "M": ERROR_CORRECT_M,  # ~15%
+            "Q": ERROR_CORRECT_Q,  # ~25%
+            "H": ERROR_CORRECT_H,  # ~30% (más denso)
+          }
+          error_correction = ec_map.get(ec_raw, ERROR_CORRECT_L)
+
+          try:
+            border = int((os.environ.get("BORDER") or "2").strip())
+          except ValueError:
+            border = 2
+
+          try:
+            box_size = int((os.environ.get("BOX_SIZE") or "10").strip())
+          except ValueError:
+            box_size = 10
+
+          # límites razonables
+          border = max(0, min(border, 10))
+          box_size = max(1, min(box_size, 50))
+
+          errors = []
+          for client in clients:
+            client = client.strip().strip("/")
+
+            folder_path = os.path.join("clientes", client)
+            if not os.path.isdir(folder_path):
+              errors.append(f"No existe: {folder_path}")
+              continue
+
+            # d=<client> (URL-encoded)
+            url = f"{base}?d={quote(client, safe='')}"
+
+            out_path = os.path.join(folder_path, filename)
+
+            qr = qrcode.QRCode(
+              version=None,               # auto
+              error_correction=error_correction,
+              box_size=box_size,
+              border=border,
+            )
+            qr.add_data(url)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color="black", back_color="white")
+            img.save(out_path)
+
+            print(f"OK  client={client}  url={url}  saved={out_path}  ec={ec_raw} border={border} box_size={box_size}")
+
+          if errors:
+            print("\nERRORES:")
+            for e in errors:
+              print(" -", e)
+            raise SystemExit(1)
+          PY
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Generate client QR(s): ${{ inputs.client_folders }}"
+          git push
