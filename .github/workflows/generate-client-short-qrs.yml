@@ -10,7 +10,7 @@ on:
       filename:
         description: "Nombre del PNG a generar en cada carpeta"
         required: false
-        default: "qr.png"
+        default: "qr-short.png"
         type: string
       error_correction:
         description: "Corrección de error: L (más simple), M, Q, H (más robusto)"
