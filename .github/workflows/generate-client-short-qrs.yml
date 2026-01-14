@@ -1,4 +1,4 @@
-name: Generate client QRs
+name: Generate short client QRs
 
 on:
   workflow_dispatch:
