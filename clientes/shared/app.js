@@ -1,6 +1,5 @@
 const params = new URLSearchParams(window.location.search);
-#const DATA_URL = params.get("data") || "./data.json";
-const DATA_URL = (params.get("data") || "./data.json").toLowerCase();
+const DATA_URL = params.get("data") || "./data.json";
 
 let allRows = [];
 
